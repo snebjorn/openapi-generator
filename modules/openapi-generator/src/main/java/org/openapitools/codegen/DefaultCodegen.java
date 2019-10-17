@@ -17,7 +17,6 @@
 
 package org.openapitools.codegen;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableMap;
 import com.samskivert.mustache.Mustache;
@@ -1958,7 +1957,7 @@ public class DefaultCodegen implements CodegenConfig {
         }
         CodegenDiscriminator discriminator = new CodegenDiscriminator();
         discriminator.setPropertyName(toVarName(schema.getDiscriminator().getPropertyName()));
-        discriminator.setPropertyRawName(schema.getDiscriminator().getPropertyName());
+        discriminator.setPropertyBaseName(schema.getDiscriminator().getPropertyName());
         discriminator.setMapping(schema.getDiscriminator().getMapping());
         if (schema.getDiscriminator().getMapping() != null && !schema.getDiscriminator().getMapping().isEmpty()) {
             for (Entry<String, String> e : schema.getDiscriminator().getMapping().entrySet()) {
@@ -2665,6 +2664,11 @@ public class DefaultCodegen implements CodegenConfig {
                     op.isResponseFile = Boolean.TRUE;
                 }
             }
+            op.responses.sort((a, b) -> {
+                int aDefault = "0".equals(a.code) ? 1 : 0;
+                int bDefault = "0".equals(b.code) ? 1 : 0;
+                return aDefault - bDefault;
+            });
             op.responses.get(op.responses.size() - 1).hasMore = false;
 
             if (methodResponse != null) {
@@ -3094,7 +3098,15 @@ public class DefaultCodegen implements CodegenConfig {
             // set default value
             codegenParameter.defaultValue = toDefaultValue(parameterSchema);
 
-            // TDOO revise collectionFormat
+            if (parameter.getStyle() != null) {
+                codegenParameter.style = parameter.getStyle().toString();
+            }
+
+            // the default value is false
+            // https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.2.md#user-content-parameterexplode
+            codegenParameter.isExplode = parameter.getExplode() == null ? false : parameter.getExplode();
+
+            // TODO revise collectionFormat
             String collectionFormat = null;
             if (ModelUtils.isArraySchema(parameterSchema)) { // for array parameter
                 final ArraySchema arraySchema = (ArraySchema) parameterSchema;
