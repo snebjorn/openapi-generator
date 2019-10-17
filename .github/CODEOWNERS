@@ -1,1 +1,2 @@
-/modules/openapi-generator/src/main/java/org/openapitools/codegen/languages/*TypeScript* @snebjorn
+**/*typescript*/** @snebjorn
+**/*TypeScript* @snebjorn
