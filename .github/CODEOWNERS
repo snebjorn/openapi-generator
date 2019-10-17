@@ -1,2 +1,3 @@
+*.java @snebjorn
 **/*typescript*/** @snebjorn
 **/*TypeScript* @snebjorn
