@@ -17,25 +17,42 @@
 
 package org.openapitools.codegen;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.openapitools.codegen.utils.ModelUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.swagger.v3.core.util.Json;
-import io.swagger.v3.oas.models.*;
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.callbacks.Callback;
-import io.swagger.v3.oas.models.media.*;
+import io.swagger.v3.oas.models.media.ArraySchema;
+import io.swagger.v3.oas.models.media.ComposedSchema;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.ObjectSchema;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.XML;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
-import org.openapitools.codegen.utils.ModelUtils;
-import org.openapitools.codegen.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.*;
-import java.util.stream.Collectors;
 
 public class InlineModelResolver {
     private OpenAPI openAPI;
@@ -44,6 +61,7 @@ public class InlineModelResolver {
     private Map<String, String> inlineSchemaNameMapping = new HashMap<>();
     private Map<String, String> inlineSchemaNameDefaults = new HashMap<>();
     private Set<String> inlineSchemaNameMappingValues = new HashSet<>();
+    private Set<String> languageSpecificPrimitives = new HashSet<>();
     public boolean resolveInlineEnums = false;
 
     // structure mapper sorts properties alphabetically on write to ensure models are
@@ -73,6 +91,10 @@ public class InlineModelResolver {
 
     public void setInlineSchemaNameDefaults(Map inlineSchemaNameDefaults) {
         this.inlineSchemaNameDefaults.putAll(inlineSchemaNameDefaults);
+    }
+
+    public void setLanguageSpecificPrimitives(Set<String> languageSpecificPrimitives) {
+        this.languageSpecificPrimitives = languageSpecificPrimitives;
     }
 
     void flatten(OpenAPI openAPI) {
@@ -211,6 +233,13 @@ public class InlineModelResolver {
                 return false;
             }
             if (m.getAnyOf() != null && !m.getAnyOf().isEmpty()) {
+                // check if any of the types are primitive aka non-models
+                for (Schema inner : m.getAnyOf()) {
+                    String innerType = inner.getType();
+                    if (languageSpecificPrimitives.contains(innerType)) {
+                        return false; // anyOf contains a primitive type, no model is needed
+                    }
+                }
                 return true;
             }
             if (m.getOneOf() != null && !m.getOneOf().isEmpty()) {
