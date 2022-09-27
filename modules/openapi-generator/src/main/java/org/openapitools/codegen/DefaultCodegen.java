@@ -17,6 +17,75 @@
 
 package org.openapitools.codegen;
 
+import static org.openapitools.codegen.CodegenConstants.UNSUPPORTED_V310_SPEC_MSG;
+import static org.openapitools.codegen.utils.OnceLogger.once;
+import static org.openapitools.codegen.utils.StringUtils.NAME_CACHE_EXPIRY_PROPERTY;
+import static org.openapitools.codegen.utils.StringUtils.NAME_CACHE_SIZE_PROPERTY;
+import static org.openapitools.codegen.utils.StringUtils.camelize;
+import static org.openapitools.codegen.utils.StringUtils.escape;
+import static org.openapitools.codegen.utils.StringUtils.underscore;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.text.StringEscapeUtils;
+import org.openapitools.codegen.CodegenDiscriminator.MappedModel;
+import org.openapitools.codegen.api.TemplatingEngineAdapter;
+import org.openapitools.codegen.config.GlobalSettings;
+import org.openapitools.codegen.examples.ExampleGenerator;
+import org.openapitools.codegen.languages.RustServerCodegen;
+import org.openapitools.codegen.meta.FeatureSet;
+import org.openapitools.codegen.meta.GeneratorMetadata;
+import org.openapitools.codegen.meta.Stability;
+import org.openapitools.codegen.meta.features.DataTypeFeature;
+import org.openapitools.codegen.meta.features.DocumentationFeature;
+import org.openapitools.codegen.meta.features.GlobalFeature;
+import org.openapitools.codegen.meta.features.ParameterFeature;
+import org.openapitools.codegen.meta.features.SchemaSupportFeature;
+import org.openapitools.codegen.meta.features.SecurityFeature;
+import org.openapitools.codegen.meta.features.WireFormatFeature;
+import org.openapitools.codegen.model.ModelMap;
+import org.openapitools.codegen.model.ModelsMap;
+import org.openapitools.codegen.model.OperationsMap;
+import org.openapitools.codegen.serializer.SerializerUtils;
+import org.openapitools.codegen.templating.MustacheEngineAdapter;
+import org.openapitools.codegen.templating.mustache.CamelCaseLambda;
+import org.openapitools.codegen.templating.mustache.IndentedLambda;
+import org.openapitools.codegen.templating.mustache.LowercaseLambda;
+import org.openapitools.codegen.templating.mustache.SnakecaseLambda;
+import org.openapitools.codegen.templating.mustache.TitlecaseLambda;
+import org.openapitools.codegen.templating.mustache.UppercaseLambda;
+import org.openapitools.codegen.utils.ModelUtils;
+import org.openapitools.codegen.utils.OneOfImplementorAdditionalData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -26,41 +95,6 @@ import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Mustache.Compiler;
 import com.samskivert.mustache.Mustache.Lambda;
 
-import org.apache.commons.lang3.ObjectUtils;
-import org.apache.commons.text.StringEscapeUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
-import org.openapitools.codegen.CodegenDiscriminator.MappedModel;
-import org.openapitools.codegen.api.TemplatingEngineAdapter;
-import org.openapitools.codegen.config.GlobalSettings;
-import org.openapitools.codegen.examples.ExampleGenerator;
-import org.openapitools.codegen.languages.RustServerCodegen;
-import org.openapitools.codegen.meta.FeatureSet;
-import org.openapitools.codegen.meta.GeneratorMetadata;
-import org.openapitools.codegen.meta.Stability;
-import org.openapitools.codegen.meta.features.*;
-import org.openapitools.codegen.model.ModelMap;
-import org.openapitools.codegen.model.ModelsMap;
-import org.openapitools.codegen.model.OperationsMap;
-import org.openapitools.codegen.serializer.SerializerUtils;
-import org.openapitools.codegen.templating.MustacheEngineAdapter;
-import org.openapitools.codegen.templating.mustache.*;
-import org.openapitools.codegen.utils.ModelUtils;
-import org.openapitools.codegen.utils.OneOfImplementorAdditionalData;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import io.swagger.v3.core.util.Json;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -68,8 +102,20 @@ import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.callbacks.Callback;
 import io.swagger.v3.oas.models.examples.Example;
 import io.swagger.v3.oas.models.headers.Header;
-import io.swagger.v3.oas.models.media.*;
-import io.swagger.v3.oas.models.parameters.*;
+import io.swagger.v3.oas.models.media.ArraySchema;
+import io.swagger.v3.oas.models.media.ComposedSchema;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.Discriminator;
+import io.swagger.v3.oas.models.media.Encoding;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.parameters.CookieParameter;
+import io.swagger.v3.oas.models.parameters.HeaderParameter;
+import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.oas.models.parameters.PathParameter;
+import io.swagger.v3.oas.models.parameters.QueryParameter;
+import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.OAuthFlow;
@@ -78,10 +124,6 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.servers.ServerVariable;
 import io.swagger.v3.parser.util.SchemaTypeUtil;
-
-import static org.openapitools.codegen.CodegenConstants.UNSUPPORTED_V310_SPEC_MSG;
-import static org.openapitools.codegen.utils.OnceLogger.once;
-import static org.openapitools.codegen.utils.StringUtils.*;
 
 public class DefaultCodegen implements CodegenConfig {
     private final Logger LOGGER = LoggerFactory.getLogger(DefaultCodegen.class);
@@ -5467,11 +5509,14 @@ public class DefaultCodegen implements CodegenConfig {
     }
 
     protected void addImports(Set<String> importsToBeAddedTo, IJsonSchemaValidationProperties type) {
-        addImports(importsToBeAddedTo, type.getImports(importContainerType, importBaseType, generatorMetadata.getFeatureSet()));
+        Set<String> imports = type.getImports(importContainerType, importBaseType, generatorMetadata.getFeatureSet());
+        addImports(importsToBeAddedTo, imports);
     }
 
     protected void addImports(Set<String> importsToBeAddedTo, Set<String> importsToAdd) {
-        importsToAdd.stream().forEach(i -> addImport(importsToBeAddedTo, i));
+        for (String $import : importsToAdd) {
+            addImport(importsToBeAddedTo, $import);
+        }
     }
 
     protected void addImport(CodegenModel m, String type) {
@@ -5502,7 +5547,8 @@ public class DefaultCodegen implements CodegenConfig {
     }
 
     protected boolean shouldAddImport(String type) {
-        return type != null && needToImport(type);
+        boolean needToImport = needToImport(type);
+        return type != null && needToImport;
     }
 
     /**

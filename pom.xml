@@ -253,6 +253,9 @@
                     <encoding>UTF-8</encoding>
                     <maxmemory>1g</maxmemory>
                     <failOnWarnings>true</failOnWarnings>
+                    <additionalparam>-Xdoclint:none</additionalparam>
+                    <additionalOptions>-Xdoclint:none</additionalOptions>
+                    <additionalJOption>-Xdoclint:none</additionalJOption>
                 </configuration>
                 <executions>
                     <execution>
