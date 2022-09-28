@@ -17,38 +17,64 @@
 
 package org.openapitools.codegen.languages;
 
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.media.ArraySchema;
-import io.swagger.v3.oas.models.media.ComposedSchema;
-import io.swagger.v3.oas.models.media.Schema;
-import io.swagger.v3.oas.models.parameters.Parameter;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.openapitools.codegen.CodegenConstants.ENUM_PROPERTY_NAMING_TYPE;
-import org.openapitools.codegen.CodegenConstants.MODEL_PROPERTY_NAMING_TYPE;
-import org.openapitools.codegen.CodegenConstants.PARAM_NAMING_TYPE;
-import org.openapitools.codegen.*;
-import org.openapitools.codegen.meta.features.*;
-import org.openapitools.codegen.model.ModelMap;
-import org.openapitools.codegen.model.ModelsMap;
-import org.openapitools.codegen.utils.ModelUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.openapitools.codegen.languages.AbstractTypeScriptClientCodegen.ParameterExpander.ParamStyle.form;
+import static org.openapitools.codegen.languages.AbstractTypeScriptClientCodegen.ParameterExpander.ParamStyle.simple;
+import static org.openapitools.codegen.utils.StringUtils.camelize;
+import static org.openapitools.codegen.utils.StringUtils.underscore;
 
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeSet;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.openapitools.codegen.languages.AbstractTypeScriptClientCodegen.ParameterExpander.ParamStyle.*;
-import static org.openapitools.codegen.utils.StringUtils.camelize;
-import static org.openapitools.codegen.utils.StringUtils.underscore;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.openapitools.codegen.CliOption;
+import org.openapitools.codegen.CodegenConfig;
+import org.openapitools.codegen.CodegenConstants;
+import org.openapitools.codegen.CodegenConstants.ENUM_PROPERTY_NAMING_TYPE;
+import org.openapitools.codegen.CodegenConstants.MODEL_PROPERTY_NAMING_TYPE;
+import org.openapitools.codegen.CodegenConstants.PARAM_NAMING_TYPE;
+import org.openapitools.codegen.CodegenModel;
+import org.openapitools.codegen.CodegenOperation;
+import org.openapitools.codegen.CodegenParameter;
+import org.openapitools.codegen.CodegenProperty;
+import org.openapitools.codegen.CodegenType;
+import org.openapitools.codegen.DefaultCodegen;
+import org.openapitools.codegen.GeneratorLanguage;
+import org.openapitools.codegen.meta.features.ClientModificationFeature;
+import org.openapitools.codegen.meta.features.DocumentationFeature;
+import org.openapitools.codegen.meta.features.GlobalFeature;
+import org.openapitools.codegen.meta.features.SchemaSupportFeature;
+import org.openapitools.codegen.meta.features.SecurityFeature;
+import org.openapitools.codegen.meta.features.WireFormatFeature;
+import org.openapitools.codegen.model.ModelMap;
+import org.openapitools.codegen.model.ModelsMap;
+import org.openapitools.codegen.utils.ModelUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.media.ArraySchema;
+import io.swagger.v3.oas.models.media.ComposedSchema;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.parameters.Parameter;
 
 public abstract class AbstractTypeScriptClientCodegen extends DefaultCodegen implements CodegenConfig {
 
@@ -264,6 +290,7 @@ public abstract class AbstractTypeScriptClientCodegen extends DefaultCodegen imp
                         GlobalFeature.ParameterStyling
                 )
                 .includeSchemaSupportFeatures(
+                        SchemaSupportFeature.anyOf,
                         SchemaSupportFeature.Polymorphism
                 )
                 .includeClientModificationFeatures(

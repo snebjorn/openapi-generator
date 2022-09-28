@@ -63,6 +63,7 @@
 		"java.format.enabled": true,
 
 		"maven.pomfile.autoUpdateEffectivePOM": true,
+		"java.configuration.updateBuildConfiguration": "disabled",
 	},
 	"extensions": {
 		"recommendations": [
@@ -72,7 +73,6 @@
 			"visualstudioexptteam.vscodeintellicode",
 			"42crunch.vscode-openapi",
 			"mermade.openapi-lint"
-
 		]
 	}
 }

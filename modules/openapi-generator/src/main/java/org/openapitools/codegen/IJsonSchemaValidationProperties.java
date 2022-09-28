@@ -7,12 +7,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import io.swagger.v3.oas.models.media.Schema;
 import org.openapitools.codegen.meta.FeatureSet;
 import org.openapitools.codegen.meta.features.SchemaSupportFeature;
 import org.openapitools.codegen.utils.ModelUtils;
+
+import io.swagger.v3.oas.models.media.Schema;
 
 public interface IJsonSchemaValidationProperties {
     CodegenProperty getContains();
@@ -327,7 +329,9 @@ public interface IJsonSchemaValidationProperties {
             Stream<CodegenProperty> innerTypes = Stream.of(
                             allOfs.stream(), anyOfs.stream(), oneOfs.stream(), nots.stream())
                     .flatMap(i -> i);
-            innerTypes.flatMap(cp -> cp.getImports(importContainerType, importBaseType, featureSet).stream()).forEach(s -> imports.add(s));
+            for (String s : innerTypes.flatMap(cp -> cp.getImports(importContainerType, importBaseType, featureSet).stream()).collect(Collectors.toSet())) {
+                imports.add(s);
+            }
         }
         // items can exist for AnyType and type array
         if (this.getItems() != null && this.getIsArray()) {
@@ -361,7 +365,7 @@ public interface IJsonSchemaValidationProperties {
                     imports.add(baseType);
                 }
             }
-        } else {
+        } else if (this.getComposedSchemas() == null) {
             // referenced or inline schemas
             String complexType = this.getComplexType();
             if (complexType != null) {
